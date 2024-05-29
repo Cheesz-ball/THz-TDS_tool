@@ -29,11 +29,14 @@ class WinGUI(Tk):
         self.merge_button = self.__tk_button_merge_data(self)  # 添加合并按钮
         self.save_all_button = self.__tk_button_save_all_data(self)  # 添加保存所有(合并)按钮
 
+        # 添加参数输入框
+        self.param_entries = self.__create_param_entries(self)
+
     def __win(self):
         self.title("TDS-Tool")
         # 设置窗口大小、居中
-        width = 575
-        height = 500
+        width = 700
+        height = 600
         screenwidth = self.winfo_screenwidth()
         screenheight = self.winfo_screenheight()
         geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
@@ -100,7 +103,7 @@ class WinGUI(Tk):
         for file in csv_files:
             self.tk_list_box_lwrc07lb.insert(END, file)
         self.Sam = [read_tdscsv(os.path.join(folder_path, file)) for file in csv_files]
-        self.all_data_list = [process_signal(self.Bg, sam) for sam in self.Sam]  # 处理所有数据
+        self.all_data_list = [self.process_signal_with_params(self.Bg, sam) for sam in self.Sam]  # 处理所有数据
         self.process_and_draw()
 
     def __tk_input_lwrbzcgo(self, parent):
@@ -144,8 +147,15 @@ class WinGUI(Tk):
 
     def process_and_draw(self):
         if self.Bg is not None and self.Sam:
-            self.data_list = [process_signal(self.Bg, sam) for sam in self.Sam]
+            self.data_list = [self.process_signal_with_params(self.Bg, sam) for sam in self.Sam]
             self.draw_data(self.data_list)
+
+    def process_signal_with_params(self, Bg, Sam):
+        params = {key: float(entry.get()) for key, entry in self.param_entries.items()}
+        # Ensure the appropriate parameters are integers
+        for int_param in ['add0', 'addwin', 't11', 't12', 't21', 't22']:
+            params[int_param] = int(params[int_param])
+        return process_signal(Bg, Sam, **params)
 
     def draw_data(self, data_list):
         for widget in self.canvas.winfo_children():
@@ -173,7 +183,7 @@ class WinGUI(Tk):
 
     def __tk_canvas_lwrg4ck8(self, parent):
         canvas = Canvas(parent, bg="#aaa")
-        canvas.place(relx=0.3130, rely=0.3200, relwidth=0.6609, relheight=0.5700)
+        canvas.place(relx=0.2571, rely=0.3200, relwidth=0.5429, relheight=0.5700)
         return canvas
 
     def __tk_button_save_data(self, parent):
@@ -226,6 +236,22 @@ class WinGUI(Tk):
             file_path = os.path.join(folder_path, 'combined_all_processed_data.csv')
             combined_data.to_csv(file_path, index=False)
             messagebox.showinfo("info", f"所有数据已成功保存到：\n{file_path}")
+
+    def __create_param_entries(self, parent):
+        params = {
+            "dt": 0.002, "add0": 0, "addwin": 1,
+            "t11": 0, "t12": 100, "t21": 0, "t22": 100,
+            "f_min": 0.6, "f_max": 1.6
+        }
+        entries = {}
+        for idx, (param, default) in enumerate(params.items()):
+            label = Label(parent, text=f"{param}:")
+            label.place(relx=0.8143, rely=0.3200 + idx * 0.0500, relwidth=0.0714, relheight=0.0600)
+            entry = Entry(parent)
+            entry.insert(0, str(default))
+            entry.place(relx=0.9000, rely=0.3200 + idx * 0.0500, relwidth=0.0714, relheight=0.0600)
+            entries[param] = entry
+        return entries
 
 
 class Win(WinGUI):
