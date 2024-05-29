@@ -4,10 +4,9 @@ from tkinter import filedialog, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from tkinter.ttk import *
-from tdstool import read_tdscsv,process_signal
+from tdstool import read_tdscsv, process_signal
 import pandas as pd
 import os
-
 
 
 class WinGUI(Tk):
@@ -15,7 +14,9 @@ class WinGUI(Tk):
         super().__init__()
         self.__win()
         self.Bg = None
-        self.Sam = None
+        self.Sam = []
+        self.data_list = []
+        self.all_data_list = []
         self.tk_button_lwqjcfcu = self.__tk_button_lwqjcfcu(self)
         self.tk_input_lwrbzcgo = self.__tk_input_lwrbzcgo(self)
         self.tk_list_box_lwrc07lb = self.__tk_list_box_lwrc07lb(self)
@@ -24,16 +25,20 @@ class WinGUI(Tk):
         self.tk_label_lwrc3w37 = self.__tk_label_lwrc3w37(self)
         self.tk_label_lwrc3xa5 = self.__tk_label_lwrc3xa5(self)
         self.canvas = self.__tk_canvas_lwrg4ck8(self)  # 初始化画布
+        self.save_button = self.__tk_button_save_data(self)  # 添加保存按钮
+        self.merge_button = self.__tk_button_merge_data(self)  # 添加合并按钮
+        self.save_all_button = self.__tk_button_save_all_data(self)  # 添加保存所有(合并)按钮
 
     def __win(self):
-        self.title("Tkinter布局助手")
+        self.title("TDS-Tool")
         # 设置窗口大小、居中
-        width = 600
+        width = 575
         height = 500
         screenwidth = self.winfo_screenwidth()
         screenheight = self.winfo_screenheight()
         geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
         self.geometry(geometry)
+
         self.minsize(width=width, height=height)
 
     def scrollbar_autohide(self, vbar, hbar, widget):
@@ -94,29 +99,25 @@ class WinGUI(Tk):
         csv_files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
         for file in csv_files:
             self.tk_list_box_lwrc07lb.insert(END, file)
+        self.Sam = [read_tdscsv(os.path.join(folder_path, file)) for file in csv_files]
+        self.all_data_list = [process_signal(self.Bg, sam) for sam in self.Sam]  # 处理所有数据
+        self.process_and_draw()
 
     def __tk_input_lwrbzcgo(self, parent):
         ipt = Entry(parent)
-        ipt.place(relx=0.2167, rely=0.0800, relwidth=0.4667, relheight=0.0600)
+        ipt.place(relx=0.2261, rely=0.0900, relwidth=0.4870, relheight=0.0600)
         return ipt
 
     def __tk_list_box_lwrc07lb(self, parent):
-        lb = Listbox(parent)
-        lb.place(relx=0.2233, rely=0.5320, relwidth=0.2500, relheight=0.2000)
+        lb = Listbox(parent, selectmode=MULTIPLE)
+        lb.place(relx=0.0348, rely=0.3200, relwidth=0.2609, relheight=0.5700)
         lb.bind('<<ListboxSelect>>', self.on_listbox_select)
         return lb
 
     def on_listbox_select(self, event):
-        selection = event.widget.curselection()
-        if selection:
-            index = selection[0]
-            file_name = event.widget.get(index)
-            folder_path = self.tk_input_lwrbzcgo.get()
-            file_path = os.path.join(folder_path, file_name)
-            self.read_and_assign_sam(file_path)
-
-    def read_and_assign_sam(self, file_path):
-        self.Sam = read_tdscsv(file_path)
+        selected_files = [event.widget.get(i) for i in event.widget.curselection()]
+        folder_path = self.tk_input_lwrbzcgo.get()
+        self.Sam = [read_tdscsv(os.path.join(folder_path, file)) for file in selected_files]
         self.process_and_draw()
 
     def __tk_input_lwrc3al1(self, parent):
@@ -142,36 +143,90 @@ class WinGUI(Tk):
             messagebox.showinfo("info", f"文件打开成功：\n{file_path}")
 
     def process_and_draw(self):
-        if self.Bg is not None and self.Sam is not None:
-            result = process_signal(self.Bg, self.Sam)
-            self.draw_data(result)
+        if self.Bg is not None and self.Sam:
+            self.data_list = [process_signal(self.Bg, sam) for sam in self.Sam]
+            self.draw_data(self.data_list)
 
-    def draw_data(self, data):
+    def draw_data(self, data_list):
         for widget in self.canvas.winfo_children():
             widget.destroy()  # 清空画布上的所有小部件
-        fig, ax = plt.subplots()
-        ax.plot(data.iloc[:, 0], data.iloc[:, 1])
-        ax.set_xlabel('X-axis Label')
-        ax.set_ylabel('Y-axis Label')
-        ax.set_title('Processed Signal')
+        fig, ax = plt.subplots(figsize=(8, 6))  # 设置图表的比例为3:4
+        for data in data_list:
+            ax.plot(data.iloc[:, 0], data.iloc[:, 1])
+        ax.set_xlabel('Frequency')
+        ax.set_ylabel('Transmission')
+        fig.tight_layout()  # 调整图表布局以适应画布
         canvas = FigureCanvasTkAgg(fig, master=self.canvas)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=BOTH, expand=YES)
+        plt.close(fig)  # 关闭当前图形窗口
 
     def __tk_label_lwrc3w37(self, parent):
         label = Label(parent, text="TDS数据路径", anchor="center")
-        label.place(relx=0.0083, rely=0.0800, relwidth=0.1333, relheight=0.0600)
+        label.place(relx=0.0348, rely=0.0900, relwidth=0.1391, relheight=0.0600)
         return label
 
     def __tk_label_lwrc3xa5(self, parent):
         label = Label(parent, text="背景路径", anchor="center")
-        label.place(relx=0.0083, rely=0.2000, relwidth=0.1333, relheight=0.0600)
+        label.place(relx=0.0348, rely=0.2000, relwidth=0.1391, relheight=0.0600)
         return label
 
     def __tk_canvas_lwrg4ck8(self, parent):
         canvas = Canvas(parent, bg="#aaa")
-        canvas.place(relx=0.4233, rely=0.4760, relwidth=0.5200, relheight=0.4120)
+        canvas.place(relx=0.3130, rely=0.3200, relwidth=0.6609, relheight=0.5700)
         return canvas
+
+    def __tk_button_save_data(self, parent):
+        btn = Button(parent, text="保存选中(单独)", takefocus=False, command=self.save_data)
+        btn.place(relx=0.3548, rely=0.9100, relwidth=0.2348, relheight=0.0600)      
+        return btn
+
+    def __tk_button_merge_data(self, parent):
+        btn = Button(parent, text="保存选中(合并)", takefocus=False, command=self.merge_data)
+        btn.place(relx=0.0661, rely=0.9180, relwidth=0.2017, relheight=0.0600)
+        return btn
+
+    def __tk_button_save_all_data(self, parent):
+        btn = Button(parent, text="保存所有(合并)", takefocus=False, command=self.save_all_data)
+        btn.place(relx=0.6000, rely=0.9100, relwidth=0.2348, relheight=0.0600)
+        return btn
+
+    def save_data(self):
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            for i, data in enumerate(self.data_list):
+                file_path = os.path.join(folder_path, f'processed_data_{i+1}.csv')
+                data.to_csv(file_path, index=False)
+            messagebox.showinfo("info", f"数据已成功保存到：\n{folder_path}")
+
+    def merge_data(self):
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            combined_data = pd.DataFrame()
+
+            for i, data in enumerate(self.data_list):
+                if combined_data.empty:
+                    combined_data['Time'] = data.iloc[:, 0]  # 假设第一列为时间列或共同X轴
+                combined_data[f'Data_{i+1}'] = data.iloc[:, 1]  # 其余列依次添加
+
+            file_path = os.path.join(folder_path, 'combined_processed_data.csv')
+            combined_data.to_csv(file_path, index=False)
+            messagebox.showinfo("info", f"数据已成功保存到：\n{file_path}")
+
+    def save_all_data(self):
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            combined_data = pd.DataFrame()
+
+            for i, data in enumerate(self.all_data_list):
+                if combined_data.empty:
+                    combined_data['Time'] = data.iloc[:, 0]  # 假设第一列为时间列或共同X轴
+                combined_data[f'Data_{i+1}'] = data.iloc[:, 1]  # 其余列依次添加
+
+            file_path = os.path.join(folder_path, 'combined_all_processed_data.csv')
+            combined_data.to_csv(file_path, index=False)
+            messagebox.showinfo("info", f"所有数据已成功保存到：\n{file_path}")
+
 
 class Win(WinGUI):
     def __init__(self, controller):
@@ -186,6 +241,7 @@ class Win(WinGUI):
 
     def __style_config(self):
         pass
+
 
 if __name__ == "__main__":
     win = WinGUI()
