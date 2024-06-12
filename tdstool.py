@@ -36,6 +36,9 @@ def read_tdscsv(csv_file_path):
 
 
 def process_signal(BG, Sam, dt=0.002, add0=0, addwin=1, t11=0, t12=100, t21=0, t22=100, f_min=0.6, f_max=1.6):
+    import numpy as np
+    import pandas as pd
+    
     # 初始化变量（示例数据）
     refE = BG.iloc[:, 1]
     samE = Sam.iloc[:, 1]
@@ -55,12 +58,12 @@ def process_signal(BG, Sam, dt=0.002, add0=0, addwin=1, t11=0, t12=100, t21=0, t
     phase0 = 2 * np.pi * f * Delay
 
     # 窗函数
-    y1 = np.ones(point)
-    y2 = np.ones(point)
+    y1 = np.ones(len(refE))
+    y2 = np.ones(len(samE))
     
     if addwin == 1:
         # 对于y1的汉宁窗
-        for j in range(point):
+        for j in range(len(refE)):
             t = time[j]
             if t11 <= t <= t12:
                 # 应用汉宁窗函数
@@ -69,7 +72,7 @@ def process_signal(BG, Sam, dt=0.002, add0=0, addwin=1, t11=0, t12=100, t21=0, t
                 y1[j] = 0  # 在窗外的点可以设置为0或其他衰减函数
 
         # 对于y2的汉宁窗
-        for j in range(point):
+        for j in range(len(samE)):
             t = time[j]
             if t21 <= t <= t22:
                 # 应用汉宁窗函数
@@ -78,8 +81,13 @@ def process_signal(BG, Sam, dt=0.002, add0=0, addwin=1, t11=0, t12=100, t21=0, t
                 y2[j] = 0  # 在窗外的点可以设置为0或其他衰减函数
 
     # 信号处理
-    Eref = np.concatenate((refE * y1, np.zeros(add0)))
-    Esam = np.concatenate((samE * y2, np.zeros(add0)))
+    Eref = np.concatenate((refE * y1, np.zeros(add0)))  # 参考信号应用窗函数并进行零填充
+    Esam = np.concatenate((samE * y2, np.zeros(add0)))  # 样本信号应用窗函数并进行零填充
+
+    # 确保补零后的数组长度一致
+    Eref = np.concatenate((refE * y1, np.zeros(point - len(refE * y1))))
+    Esam = np.concatenate((samE * y2, np.zeros(point - len(samE * y2))))
+
     Eref1 = np.fft.fft(Eref)
     Esam1 = np.fft.fft(Esam)
     Pref = np.abs(Eref1)
